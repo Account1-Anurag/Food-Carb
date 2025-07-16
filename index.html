@@ -3,69 +3,97 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Food Carb Tracker</title>
+    <title>Total Carb Counting</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
     <div class="container">
-        <!-- Header -->
         <header class="header">
-            <div class="header-content">
-                <h1 class="logo">
-                    <i class="fas fa-apple-alt"></i>
-                    Food Carb Tracker
-                </h1>
-                <p class="tagline">Track carbohydrates in your favorite foods</p>
-            </div>
+            <h1><i class="fas fa-calculator"></i> Count the Carbs </h1>
+            <p>Track your daily carbohydrate intake with precision</p>
         </header>
 
-        <!-- Search Section -->
+        <!-- Main Search Section -->
         <section class="search-section">
             <div class="search-container">
                 <div class="search-box">
-                    <i class="fas fa-search search-icon"></i>
-                    <input type="text" id="searchInput" placeholder="Search for food items..." class="search-input">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="foodSearch" placeholder="Enter the food items here (e.g., 1 banana, 2 slices bread)">
                     <button id="searchBtn" class="search-btn">
-                        <i class="fas fa-search"></i>
+                        <span class="btn-text">Count the Carbs</span>
+                        <i class="fas fa-arrow-right"></i>
                     </button>
                 </div>
+                <div class="search-suggestions" id="suggestions"></div>
             </div>
         </section>
 
         <!-- Loading Indicator -->
-        <div id="loadingIndicator" class="loading-indicator hidden">
-            <div class="spinner"></div>
-            <p>Searching for food items...</p>
+        <div id="loading" class="loading hidden">
+            <div class="loader"></div>
+            <p>Calculating carbs...</p>
         </div>
 
         <!-- Results Section -->
-        <section class="results-section">
-            <div id="resultsContainer" class="results-container">
-                <!-- Food items will be displayed here -->
+        <section class="results-section" id="resultsSection">
+            <div class="results-header">
+                <h2>Nutritional Breakdown</h2>
+                <button id="clearBtn" class="clear-btn">
+                    <i class="fas fa-trash"></i> Clear All
+                </button>
+            </div>
+            
+            <div class="food-items" id="foodItems"></div>
+            
+            <div class="totals-section">
+                <div class="total-card carbs-total">
+                    <div class="total-icon">
+                        <i class="fas fa-bread-slice"></i>
+                    </div>
+                    <div class="total-info">
+                        <h3>Total Carbs</h3>
+                        <span id="totalCarbs">0g</span>
+                    </div>
+                </div>
+                
+                <div class="total-card calories-total">
+                    <div class="total-icon">
+                        <i class="fas fa-fire"></i>
+                    </div>
+                    <div class="total-info">
+                        <h3>Total Calories</h3>
+                        <span id="totalCalories">0</span>
+                    </div>
+                </div>
             </div>
         </section>
 
-        <!-- No Results Message -->
-        <div id="noResults" class="no-results hidden">
-            <i class="fas fa-search"></i>
-            <h3>No food items found</h3>
-            <p>Try searching with different keywords</p>
-        </div>
-
-        <!-- Error Message -->
-        <div id="errorMessage" class="error-message hidden">
-            <i class="fas fa-exclamation-triangle"></i>
-            <h3>Something went wrong</h3>
-            <p id="errorText">Please try again later</p>
-        </div>
-
-        <!-- Footer -->
-        <footer class="footer">
-            <p>&copy; 2025 Food Carb Tracker. Powered by FatSecret API</p>
-        </footer>
+        <!-- Example Section -->
+        <section class="example-section">
+            <h3><i class="fas fa-lightbulb"></i> Example Usage</h3>
+            <div class="example-items">
+                <button class="example-btn" data-food="1 banana">
+                    <i class="fas fa-seedling"></i> 1 banana
+                </button>
+                <button class="example-btn" data-food="2 slices bread">
+                    <i class="fas fa-bread-slice"></i> 2 slices bread
+                </button>
+                <button class="example-btn" data-food="1 cup rice">
+                    <i class="fas fa-rice"></i> 1 cup rice
+                </button>
+                <button class="example-btn" data-food="1 apple">
+                    <i class="fas fa-apple-alt"></i> 1 apple
+                </button>
+            </div>
+        </section>
     </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p>&copy; 2025 Total Carb Counter. Powered by Nutritionix API</p>
+    </footer>
 
     <script src="script.js"></script>
 </body>

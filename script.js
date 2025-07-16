@@ -1,313 +1,304 @@
-// Configuration - Nutritionix API credentials
+// API Configuration
 const API_CONFIG = {
-    API_KEY: '61366c402a536a31c5e794174ca61fe1',
-    APPLICATION_ID: '27665e1e',
-    BASE_URL: 'https://trackapi.nutritionix.com/v2',
-    SEARCH_URL: 'https://trackapi.nutritionix.com/v2/search/instant',
-    NUTRIENTS_URL: 'https://trackapi.nutritionix.com/v2/natural/nutrients'
+    nutritionix: {
+        apiKey: '61366c402a536a31c5e794174ca61fe1',
+        appId: '27665e1e',
+        baseUrl: 'https://trackapi.nutritionix.com/v2'
+    }
 };
 
-// DOM elements
-const searchInput = document.getElementById('searchInput');
-const searchBtn = document.getElementById('searchBtn');
-const loadingIndicator = document.getElementById('loadingIndicator');
-const resultsContainer = document.getElementById('resultsContainer');
-const noResults = document.getElementById('noResults');
-const errorMessage = document.getElementById('errorMessage');
-const errorText = document.getElementById('errorText');
+// Application State
+let foodItems = [];
+let totalCarbs = 0;
+let totalCalories = 0;
 
-// Initialize the app
+// DOM Elements
+const searchInput = document.getElementById('foodSearch');
+const searchBtn = document.getElementById('searchBtn');
+const loadingElement = document.getElementById('loading');
+const resultsSection = document.getElementById('resultsSection');
+const foodItemsContainer = document.getElementById('foodItems');
+const totalCarbsElement = document.getElementById('totalCarbs');
+const totalCaloriesElement = document.getElementById('totalCalories');
+const clearBtn = document.getElementById('clearBtn');
+const exampleBtns = document.querySelectorAll('.example-btn');
+
+// Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
-    // Event listeners
-    searchBtn.addEventListener('click', performSearch);
+    setupEventListeners();
+    loadFromStorage();
+});
+
+// Setup Event Listeners
+function setupEventListeners() {
+    searchBtn.addEventListener('click', handleSearch);
     searchInput.addEventListener('keypress', function(e) {
         if (e.key === 'Enter') {
-            performSearch();
+            handleSearch();
         }
     });
     
-    // Load some popular foods on initial load
-    searchFood('apple');
-});
-
-// Remove OAuth token functions - not needed for Nutritionix API
-
-// Perform search
-async function performSearch() {
-    const query = searchInput.value.trim();
+    clearBtn.addEventListener('click', clearAll);
     
+    // Example button listeners
+    exampleBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const foodText = this.dataset.food;
+            searchInput.value = foodText;
+            handleSearch();
+        });
+    });
+}
+
+// Handle Search
+async function handleSearch() {
+    const query = searchInput.value.trim();
     if (!query) {
-        searchInput.focus();
+        showError('Please enter a food item');
         return;
     }
     
-    showLoading();
-    hideMessages();
+    showLoading(true);
     
     try {
-        await searchFood(query);
-    } catch (error) {
-        console.error('Search error:', error);
-        showError('Search failed. Please try again.');
-    }
-}
-
-// Search for food items using Nutritionix API
-async function searchFood(query) {
-    try {
-        const response = await fetch(`${API_CONFIG.SEARCH_URL}?query=${encodeURIComponent(query)}`, {
-            headers: {
-                'x-app-id': API_CONFIG.APPLICATION_ID,
-                'x-app-key': API_CONFIG.API_KEY,
-                'Content-Type': 'application/json'
-            }
-        });
-        
-        if (!response.ok) {
-            throw new Error(`API request failed: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        
-        // Combine branded and common foods
-        const allFoods = [];
-        
-        if (data.common && data.common.length > 0) {
-            allFoods.push(...data.common.slice(0, 10)); // Limit to 10 items
-        }
-        
-        if (data.branded && data.branded.length > 0) {
-            allFoods.push(...data.branded.slice(0, 10)); // Limit to 10 items
-        }
-        
-        if (allFoods.length > 0) {
-            displayResults(allFoods);
+        const nutritionData = await getNutritionData(query);
+        if (nutritionData && nutritionData.foods) {
+            addFoodItems(nutritionData.foods);
+            searchInput.value = '';
+            updateTotals();
+            showResults();
         } else {
-            showNoResults();
+            showError('No nutrition data found for this food item');
         }
     } catch (error) {
-        console.error('Error searching food:', error);
-        showError('Failed to search food items. Please try again.');
+        console.error('Error fetching nutrition data:', error);
+        showError('Unable to fetch nutrition data. Please try again.');
     } finally {
-        hideLoading();
+        showLoading(false);
     }
 }
 
-// Get detailed food nutrition information
-async function getFoodNutrition(foodName) {
+// Get Nutrition Data from Nutritionix API
+async function getNutritionData(query) {
     try {
-        const response = await fetch(API_CONFIG.NUTRIENTS_URL, {
+        const response = await fetch(${API_CONFIG.nutritionix.baseUrl}/natural/nutrients, {
             method: 'POST',
             headers: {
-                'x-app-id': API_CONFIG.APPLICATION_ID,
-                'x-app-key': API_CONFIG.API_KEY,
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'x-app-id': API_CONFIG.nutritionix.appId,
+                'x-app-key': API_CONFIG.nutritionix.apiKey
             },
             body: JSON.stringify({
-                query: foodName
+                query: query
             })
         });
         
         if (!response.ok) {
-            throw new Error(`API request failed: ${response.status}`);
+            throw new Error(HTTP error! status: ${response.status});
         }
         
         const data = await response.json();
-        return data.foods && data.foods.length > 0 ? data.foods[0] : null;
+        return data;
     } catch (error) {
-        console.error('Error getting food nutrition:', error);
-        return null;
+        console.error('API Error:', error);
+        throw error;
     }
 }
 
-// Display search results
-async function displayResults(foods) {
-    resultsContainer.innerHTML = '';
-    
-    for (const food of foods) {
-        const foodName = food.food_name || food.brand_name_item_name;
-        const nutritionData = await getFoodNutrition(foodName);
+// Add Food Items to the list
+function addFoodItems(foods) {
+    foods.forEach(food => {
+        const foodItem = {
+            id: Date.now() + Math.random(),
+            name: food.food_name,
+            quantity: food.serving_qty,
+            unit: food.serving_unit,
+            calories: Math.round(food.nf_calories || 0),
+            carbs: Math.round(food.nf_total_carbohydrate || 0),
+            protein: Math.round(food.nf_protein || 0),
+            fat: Math.round(food.nf_total_fat || 0),
+            fiber: Math.round(food.nf_dietary_fiber || 0),
+            sugar: Math.round(food.nf_sugars || 0),
+            sodium: Math.round(food.nf_sodium || 0),
+            cholesterol: Math.round(food.nf_cholesterol || 0),
+            magnesium: Math.round(food.nf_magnesium || 0),
+            calcium: Math.round(food.nf_calcium || 0)
+        };
         
-        if (nutritionData) {
-            const foodCard = createFoodCard(nutritionData);
-            resultsContainer.appendChild(foodCard);
-        } else {
-            // Create a basic card with available information
-            const basicCard = createBasicFoodCard(food);
-            resultsContainer.appendChild(basicCard);
+        foodItems.push(foodItem);
+    });
+    
+    renderFoodItems();
+    saveToStorage();
+}
+
+// Render Food Items
+function renderFoodItems() {
+    foodItemsContainer.innerHTML = '';
+    
+    foodItems.forEach(item => {
+        const foodItemElement = createFoodItemElement(item);
+        foodItemsContainer.appendChild(foodItemElement);
+    });
+}
+
+// Create Food Item Element
+function createFoodItemElement(item) {
+    const div = document.createElement('div');
+    div.className = 'food-item';
+    div.innerHTML = `
+        <div class="food-item-header">
+            <span class="food-name">${item.quantity} ${item.unit} ${item.name}</span>
+            <button class="remove-btn" onclick="removeFood(${item.id})">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="nutrition-grid">
+            <div class="nutrition-item">
+                <h4>Carbs</h4>
+                <span>${item.carbs}g</span>
+            </div>
+            <div class="nutrition-item">
+                <h4>Calories</h4>
+                <span>${item.calories}</span>
+            </div>
+            <div class="nutrition-item">
+                <h4>Protein</h4>
+                <span>${item.protein}g</span>
+            </div>
+            <div class="nutrition-item">
+                <h4>Fat</h4>
+                <span>${item.fat}g</span>
+            </div>
+            <div class="nutrition-item">
+                <h4>Fiber</h4>
+                <span>${item.fiber}g</span>
+            </div>
+            <div class="nutrition-item">
+                <h4>Sugar</h4>
+                <span>${item.sugar}g</span>
+            </div>
+        </div>
+    `;
+    return div;
+}
+
+// Remove Food Item
+function removeFood(id) {
+    foodItems = foodItems.filter(item => item.id !== id);
+    renderFoodItems();
+    updateTotals();
+    saveToStorage();
+    
+    if (foodItems.length === 0) {
+        hideResults();
+    }
+}
+
+// Update Totals
+function updateTotals() {
+    totalCarbs = foodItems.reduce((sum, item) => sum + item.carbs, 0);
+    totalCalories = foodItems.reduce((sum, item) => sum + item.calories, 0);
+    
+    totalCarbsElement.textContent = ${totalCarbs}g;
+    totalCaloriesElement.textContent = totalCalories;
+}
+
+// Clear All Items
+function clearAll() {
+    foodItems = [];
+    renderFoodItems();
+    updateTotals();
+    hideResults();
+    saveToStorage();
+}
+
+// Show/Hide Loading
+function showLoading(show) {
+    loadingElement.classList.toggle('hidden', !show);
+}
+
+// Show Results
+function showResults() {
+    resultsSection.classList.add('show');
+}
+
+// Hide Results
+function hideResults() {
+    resultsSection.classList.remove('show');
+}
+
+// Show Error Message
+function showError(message) {
+    // Create a temporary error element
+    const errorDiv = document.createElement('div');
+    errorDiv.className = 'error-message';
+    errorDiv.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #ff4757;
+        color: white;
+        padding: 15px 20px;
+        border-radius: 10px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        z-index: 1000;
+        animation: slideIn 0.3s ease;
+    `;
+    errorDiv.textContent = message;
+    
+    document.body.appendChild(errorDiv);
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+        errorDiv.remove();
+    }, 3000);
+}
+
+// Storage Functions
+function saveToStorage() {
+    const data = {
+        foodItems: foodItems,
+        totalCarbs: totalCarbs,
+        totalCalories: totalCalories
+    };
+    
+    // Since we can't use localStorage in Claude.ai, we'll store in memory
+    window.carbCounterData = data;
+}
+
+function loadFromStorage() {
+    // Since we can't use localStorage in Claude.ai, we'll load from memory
+    const data = window.carbCounterData;
+    if (data) {
+        foodItems = data.foodItems || [];
+        totalCarbs = data.totalCarbs || 0;
+        totalCalories = data.totalCalories || 0;
+        
+        if (foodItems.length > 0) {
+            renderFoodItems();
+            updateTotals();
+            showResults();
+        }
+    }
+}
+
+// Add CSS animation for error messages
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes slideIn {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
         }
     }
     
-    if (resultsContainer.children.length === 0) {
-        showNoResults();
+    .error-message {
+        animation: slideIn 0.3s ease;
     }
-}
-
-// Create food card element with Nutritionix data
-function createFoodCard(food) {
-    const card = document.createElement('div');
-    card.className = 'food-item';
-    
-    // Extract nutritional values from Nutritionix API response
-    const calories = Math.round(food.nf_calories) || 'N/A';
-    const carbs = Math.round(food.nf_total_carbohydrate) || 'N/A';
-    const protein = Math.round(food.nf_protein) || 'N/A';
-    const fat = Math.round(food.nf_total_fat) || 'N/A';
-    const fiber = Math.round(food.nf_dietary_fiber) || 'N/A';
-    const sugar = Math.round(food.nf_sugars) || 'N/A';
-    const sodium = Math.round(food.nf_sodium) || 'N/A';
-    
-    // Get serving information
-    const servingQty = food.serving_qty || 1;
-    const servingUnit = food.serving_unit || 'serving';
-    const servingWeight = food.serving_weight_grams ? `(${Math.round(food.serving_weight_grams)}g)` : '';
-    
-    card.innerHTML = `
-        <h3>${food.food_name}</h3>
-        <p class="serving-info">Per ${servingQty} ${servingUnit} ${servingWeight}</p>
-        <div class="food-info">
-            <div class="info-item">
-                <div class="info-label">Calories</div>
-                <div class="info-value">${calories}</div>
-            </div>
-            <div class="info-item carb-highlight">
-                <div class="info-label">Carbs</div>
-                <div class="info-value">${carbs}g</div>
-            </div>
-        </div>
-        <div class="nutrition-details">
-            <div class="nutrition-item">
-                <strong>${protein}g</strong>
-                <span>Protein</span>
-            </div>
-            <div class="nutrition-item">
-                <strong>${fat}g</strong>
-                <span>Fat</span>
-            </div>
-            <div class="nutrition-item">
-                <strong>${fiber}g</strong>
-                <span>Fiber</span>
-            </div>
-            <div class="nutrition-item">
-                <strong>${sugar}g</strong>
-                <span>Sugar</span>
-            </div>
-            <div class="nutrition-item">
-                <strong>${sodium}mg</strong>
-                <span>Sodium</span>
-            </div>
-        </div>
-    `;
-    
-    return card;
-}
-
-// Create basic food card for items without detailed nutrition
-function createBasicFoodCard(food) {
-    const card = document.createElement('div');
-    card.className = 'food-item';
-    
-    const foodName = food.food_name || food.brand_name_item_name;
-    const brand = food.brand_name || '';
-    
-    card.innerHTML = `
-        <h3>${foodName}</h3>
-        ${brand ? `<p class="brand-name">${brand}</p>` : ''}
-        <div class="food-info">
-            <div class="info-item">
-                <div class="info-label">Status</div>
-                <div class="info-value">Loading...</div>
-            </div>
-            <div class="info-item carb-highlight">
-                <div class="info-label">Carbs</div>
-                <div class="info-value">-</div>
-            </div>
-        </div>
-        <div class="nutrition-details">
-            <div class="nutrition-item">
-                <strong>-</strong>
-                <span>Protein</span>
-            </div>
-            <div class="nutrition-item">
-                <strong>-</strong>
-                <span>Fat</span>
-            </div>
-            <div class="nutrition-item">
-                <strong>-</strong>
-                <span>Fiber</span>
-            </div>
-            <div class="nutrition-item">
-                <strong>-</strong>
-                <span>Sugar</span>
-            </div>
-            <div class="nutrition-item">
-                <strong>-</strong>
-                <span>Sodium</span>
-            </div>
-        </div>
-    `;
-    
-    return card;
-}
-
-// Show loading indicator
-function showLoading() {
-    loadingIndicator.classList.remove('hidden');
-    resultsContainer.innerHTML = '';
-}
-
-// Hide loading indicator
-function hideLoading() {
-    loadingIndicator.classList.add('hidden');
-}
-
-// Show no results message
-function showNoResults() {
-    noResults.classList.remove('hidden');
-    errorMessage.classList.add('hidden');
-}
-
-// Show error message
-function showError(message) {
-    errorText.textContent = message;
-    errorMessage.classList.remove('hidden');
-    noResults.classList.add('hidden');
-}
-
-// Hide all messages
-function hideMessages() {
-    noResults.classList.add('hidden');
-    errorMessage.classList.add('hidden');
-}
-
-// Handle API errors gracefully
-function handleAPIError(error) {
-    console.error('API Error:', error);
-    
-    if (error.message.includes('401')) {
-        showError('Authentication failed. Please check your API credentials.');
-    } else if (error.message.includes('429')) {
-        showError('Rate limit exceeded. Please try again later.');
-    } else if (error.message.includes('500')) {
-        showError('Server error. Please try again later.');
-    } else {
-        showError('An unexpected error occurred. Please try again.');
-    }
-}
-
-// Debounce function for search input
-function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
-            clearTimeout(timeout);
-            func(...args);
-        };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-    };
-}
-
-// Add real-time search with debouncing
-const debouncedSearch = debounce(performSearch, 500);
-searchInput.addEventListener('input', debouncedSearch);
+`;
+document.head.appendChild(style);
